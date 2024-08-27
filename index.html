@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat P2P com PeerJS e Tags de Usuário</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at center, #1e90ff, #87cefa);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            color: #222;
+        }
+
+        .messages {
+            width: 100%;
+            height: 300px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            text-align: left;
+        }
+
+        .messageInput, .connectToPeerId, .userTag {
+            margin-bottom: 10px;
+            width: 100%;
+            max-width: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .sendBtn, .createPeerBtn, .connectBtn {
+            margin-top: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #1e90ff;
+            color: white;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+        .sendBtn:disabled, .createPeerBtn:disabled, .connectBtn:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+
+        .sendBtn:hover, .createPeerBtn:hover, .connectBtn:hover {
+            background: #333;
+        }
+
+        .footer {
+            margin-top: 20px;
+            font-size: 1em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Chat P2P com PeerJS e Tags de Usuário</h1>
+
+        <input type="text" id="userTag" class="userTag" placeholder="Digite seu nome de usuário">
+        <input type="text" id="peerId" class="userTag" placeholder="Seu ID Peer" readonly>
+        <button id="createPeerBtn" class="createPeerBtn">Criar Peer</button>
+
+        <input type="text" id="connectToPeerId" class="connectToPeerId" placeholder="Conectar ao ID Peer">
+        <button id="connectBtn" class="connectBtn">Conectar</button>
+
+        <div id="messages" class="messages"></div>
+
+        <input type="text" id="messageInput" class="messageInput" placeholder="Digite uma mensagem..." disabled>
+        <button id="sendBtn" class="sendBtn" disabled>Enviar</button>
+
+        <div class="footer">
+            &copy; 2024 Chat P2P. Todos os direitos reservados.
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/peerjs@1.3.1/dist/peerjs.min.js"></script>
+    <script>
+        const messages = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const peerIdInput = document.getElementById('peerId');
+        const connectToPeerIdInput = document.getElementById('connectToPeerId');
+        const userTagInput = document.getElementById('userTag');
+        const createPeerBtn = document.getElementById('createPeerBtn');
+        const connectBtn = document.getElementById('connectBtn');
+
+        let peer;
+        let conn;
+        let userTag = ''; // Tag do usuário
+
+        // Criação do Peer
+        createPeerBtn.addEventListener('click', () => {
+            userTag = userTagInput.value.trim() || 'Usuário'; // Define uma tag padrão se não for fornecida
+            peer = new Peer();
+
+            peer.on('open', id => {
+                peerIdInput.value = id;
+                console.log('Peer criado com ID:', id); // Log para depuração
+            });
+
+            peer.on('connection', connection => {
+                conn = connection;
+                console.log('Conexão recebida de:', conn.peer); // Log para depuração
+                setupConnectionHandlers();
+            });
+
+            peer.on('error', err => {
+                console.error('Erro no Peer:', err); // Log de erro
+            });
+        });
+
+        // Conectar a um Peer
+        connectBtn.addEventListener('click', () => {
+            const remotePeerId = connectToPeerIdInput.value.trim();
+            if (remotePeerId) {
+                conn = peer.connect(remotePeerId);
+                console.log('Conectando ao Peer:', remotePeerId); // Log para depuração
+                setupConnectionHandlers();
+            } else {
+                console.error('ID do Peer remoto não fornecido'); // Log de erro
+            }
+        });
+
+        function setupConnectionHandlers() {
+            conn.on('open', () => {
+                console.log('Conexão aberta com:', conn.peer); // Log para depuração
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+            });
+
+            conn.on('data', data => {
+                // Ignora mensagens vazias
+                if (data.message.trim()) {
+                    console.log('Mensagem recebida:', data); // Log para depuração
+                    const newMessage = document.createElement('p');
+                    newMessage.textContent = `${data.tag}: ${data.message}`;
+                    messages.appendChild(newMessage);
+                }
+            });
+
+            conn.on('error', err => {
+                console.error('Erro na Conexão:', err); // Log de erro
+            });
+
+            sendBtn.addEventListener('click', () => {
+                const message = messageInput.value.trim();
+
+                // Ignora mensagens vazias
+                if (message) {
+                    const messageData = {
+                        tag: userTag,
+                        message: message
+                    };
+                    
+                    conn.send(messageData);
+                    console.log('Mensagem enviada:', messageData); // Log para depuração
+
+                    const newMessage = document.createElement('p');
+                    newMessage.textContent = `Você: ${message}`;
+                    messages.appendChild(newMessage);
+
+                    messageInput.value = '';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
